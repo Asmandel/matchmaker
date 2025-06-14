@@ -29,19 +29,17 @@ export default async function Page({
   const { data, error } = await supabase.from("creators").select("*");
   if (error || !data) return notFound();
 
-  const match = data.find((c) => slugify(c.name) === slug);
+  const match = data.find((c: Creator) => slugify(c.name) === slug);
   if (!match) return notFound();
-
-  const creator = match as Creator;
 
   return (
     <div className="p-8 space-y-4">
-      <h1 className="text-3xl font-bold">{creator.name}</h1>
-      <p><strong>Niche:</strong> {creator.niche}</p>
-      <p><strong>Reach:</strong> {creator.reach.toLocaleString()}</p>
-      <p><strong>Topics:</strong> {creator.topics.join(", ")}</p>
+      <h1 className="text-3xl font-bold">{match.name}</h1>
+      <p><strong>Niche:</strong> {match.niche}</p>
+      <p><strong>Reach:</strong> {match.reach.toLocaleString()}</p>
+      <p><strong>Topics:</strong> {match.topics.join(", ")}</p>
       <a
-        href={`https://youtube.com/channel/${creator.youtube_channel_id}`}
+        href={`https://youtube.com/channel/${match.youtube_channel_id}`}
         target="_blank"
         rel="noopener noreferrer"
         className="text-blue-600 underline"
