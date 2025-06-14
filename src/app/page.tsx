@@ -1,96 +1,104 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 
-type Creator = {
-  id: string;
-  name: string;
-  niche: string | null;
-};
+const YT_API_KEY = process.env.NEXT_PUBLIC_YOUTUBE_API_KEY;
 
 export default function Home() {
-  const [creators, setCreators] = useState<Creator[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({
-    name: "",
-    niche: "",
-    reach: "",
-    topics: "",
-    youtube_channel_id: "",
-  });
+  const [channelInput, setChannelInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState("");
 
-  useEffect(() => {
-    const fetchCreators = async () => {
-      const { data, error } = await supabase.from("creators").select("*");
+  const fetchChannelInfo = async () => {
+    setLoading(true);
+    setStatus("");
 
-      if (!error && data !== null) {
-        setCreators(data as Creator[]);
-      }
+    try {
+      const channelId = await resolveChannelId(channelInput);
+      if (!channelId) throw new Error("Channel not found");
 
-      setLoading(false);
-    };
+      const channelData = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${channelId}&key=${YT_API_KEY}`)
+        .then((res) => res.json());
 
-    fetchCreators();
-  }, []);
+      const channel = channelData.items?.[0];
+      if (!channel) throw new Error("Unable to fetch channel details");
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+      const { title, description } = channel.snippet;
+      const reach = channel.statistics.subscriberCount;
+
+      // Auto-generate topics (very basic, upgrade later)
+      const topics = extractTopics(description);
+
+      // Insert into Supabase
+      const { error } = await supabase.from("creators").insert([
+        {
+          name: title,
+          niche: "Auto", // Can refine with AI later
+          reach: parseInt(reach),
+          youtube_channel_id: channelId,
+          topics,
+        },
+      ]);
+
+      if (error) throw error;
+
+      setStatus("✅ Creator added successfully");
+    } catch (err: any) {
+      setStatus("❌ " + err.message);
+    }
+
+    setLoading(false);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const resolveChannelId = async (input: string): Promise<string | null> => {
+    const isUrl = input.includes("youtube.com");
 
-    const { name, niche, reach, topics, youtube_channel_id } = form;
-    const topicArray = topics.split(",").map((t) => t.trim());
+    if (isUrl) {
+      const url = new URL(input);
+      const path = url.pathname.split("/");
+      const username = path[path.length - 1];
 
-    const { data, error } = await supabase.from("creators").insert([
-      {
-        name,
-        niche,
-        reach: Number(reach),
-        topics: topicArray,
-        youtube_channel_id,
-      },
-    ]);
+      if (url.pathname.includes("/channel/")) return username;
 
-    if (error) {
-      alert("Failed to add creator: " + error.message);
-    } else {
-      setForm({ name: "", niche: "", reach: "", topics: "", youtube_channel_id: "" });
+      // If it's /c/ or /user/, resolve to channel ID
+      const data = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${username}&key=${YT_API_KEY}`)
+        .then((res) => res.json());
 
-      if (data !== null) {
-        setCreators([...creators, ...data]);
-      }
+      return data.items?.[0]?.snippet?.channelId || null;
     }
+
+    // If plain text, treat as username or ID
+    return input;
+  };
+
+  const extractTopics = (desc: string): string[] => {
+    const words = desc.toLowerCase().split(/\W+/);
+    const topicWords = words.filter((w) =>
+      ["travel", "comedy", "tech", "fitness", "music", "gaming", "lifestyle", "food", "fashion"].includes(w)
+    );
+    return [...new Set(topicWords)];
   };
 
   return (
-    <div className="p-8 space-y-10">
-      <h1 className="text-2xl font-bold">🎥 Creators</h1>
+    <div className="p-8 space-y-6">
+      <h1 className="text-2xl font-bold">🔍 Add Creator from YouTube</h1>
+      <input
+        type="text"
+        placeholder="Paste YouTube Channel URL or Username"
+        value={channelInput}
+        onChange={(e) => setChannelInput(e.target.value)}
+        className="w-full border rounded p-2"
+      />
+      <button
+        onClick={fetchChannelInfo}
+        disabled={loading}
+        className="bg-black text-white px-4 py-2 rounded disabled:opacity-50"
+      >
+        {loading ? "Processing..." : "Fetch & Add Creator"}
+      </button>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <input type="text" name="name" placeholder="Name" value={form.name} onChange={handleChange} required className="block w-full border rounded p-2" />
-        <input type="text" name="niche" placeholder="Niche" value={form.niche} onChange={handleChange} required className="block w-full border rounded p-2" />
-        <input type="number" name="reach" placeholder="Reach" value={form.reach} onChange={handleChange} required className="block w-full border rounded p-2" />
-        <input type="text" name="topics" placeholder="Topics (comma-separated)" value={form.topics} onChange={handleChange} required className="block w-full border rounded p-2" />
-        <input type="text" name="youtube_channel_id" placeholder="YouTube Channel ID" value={form.youtube_channel_id} onChange={handleChange} required className="block w-full border rounded p-2" />
-        <button type="submit" className="bg-black text-white px-4 py-2 rounded">Submit Creator</button>
-      </form>
-
-      <hr />
-
-      {loading ? (
-        <p>Loading creators...</p>
-      ) : creators.length === 0 ? (
-        <p>No creators found.</p>
-      ) : (
-        <ul className="list-disc pl-6">
-          {creators.map((c) => (
-            <li key={c.id}>{c.name} — {c.niche}</li>
-          ))}
-        </ul>
-      )}
+      {status && <p>{status}</p>}
     </div>
   );
 }
