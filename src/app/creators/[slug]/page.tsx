@@ -1,37 +1,28 @@
 import { supabase } from "@/lib/supabaseClient";
+import { notFound } from "next/navigation";
 
-type Params = {
-  slug: string;
-};
+export async function generateStaticParams() {
+  const { data: creators } = await supabase.from("creators").select("slug");
+  return creators?.map((c) => ({ slug: c.slug })) || [];
+}
 
-export default async function CreatorPage({
-  params,
-}: {
-  params: Params;
-}) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export default async function CreatorPage({ params }: any) {
   const { slug } = params;
-  const { data: creator } = await supabase
+
+  const { data: creator, error } = await supabase
     .from("creators")
     .select("*")
     .eq("slug", slug)
     .single();
 
-  if (!creator) {
-    return <div className="p-8">Creator not found</div>;
-  }
+  if (!creator || error) return notFound();
 
   return (
     <div className="p-8">
-      <h1 className="text-2xl font-bold">{creator.name}</h1>
-      <p className="text-gray-600">{creator.niche}</p>
-      <div className="mt-4">
-        <h2 className="text-lg font-semibold">Topics</h2>
-        <ul className="list-disc pl-6">
-          {(creator.topics || []).map((topic: string, index: number) => (
-            <li key={index}>{topic}</li>
-          ))}
-        </ul>
-      </div>
+      <h1 className="text-2xl font-bold mb-2">{creator.name}</h1>
+      <p className="mb-4 text-gray-600">Niche: {creator.niche}</p>
+      <p>{creator.description}</p>
     </div>
   );
 }
