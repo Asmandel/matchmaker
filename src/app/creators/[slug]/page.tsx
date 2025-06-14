@@ -13,10 +13,17 @@ type Creator = {
 };
 
 function slugify(text: string) {
-  return text.toLowerCase().replace(/[^\w]+/g, "-").replace(/(^-|-$)/g, "");
+  return text
+    .toLowerCase()
+    .replace(/[^\w]+/g, "-")
+    .replace(/(^-|-$)/g, "");
 }
 
-export default async function Page({ params }: { params: { slug: string } }) {
+interface Props {
+  params: { slug: string };
+}
+
+export default async function Page({ params }: Props) {
   const { slug } = params;
 
   const { data, error } = await supabase.from("creators").select("*");
