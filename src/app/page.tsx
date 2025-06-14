@@ -3,8 +3,14 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 
+type Creator = {
+  id: string;
+  name: string;
+  niche: string | null;
+};
+
 export default function Home() {
-  const [creators, setCreators] = useState<any[]>([]);
+  const [creators, setCreators] = useState<Creator[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -14,7 +20,7 @@ export default function Home() {
       if (error) {
         console.error("Error fetching creators:", error.message);
       } else {
-        setCreators(data || []);
+        setCreators((data as Creator[]) || []);
       }
 
       setLoading(false);
