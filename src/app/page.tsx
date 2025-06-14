@@ -58,7 +58,10 @@ export default function Home() {
       alert("Failed to add creator: " + error.message);
     } else {
       setForm({ name: "", niche: "", reach: "", topics: "", youtube_channel_id: "" });
-      setCreators([...creators, ...(data as Creator[])]);
+
+      if (data !== null) {
+        setCreators([...creators, ...data]);
+      }
     }
   };
 
