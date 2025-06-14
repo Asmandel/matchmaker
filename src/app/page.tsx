@@ -91,7 +91,7 @@ ${description}
 
 And here are the 10 latest video titles and descriptions:
 ---
-${videoData.map(v => `Title: ${v.title}\nDescription: ${v.description}`).join("\n\n")}
+${videoData.map((v: { title: string; description: string }) => `Title: ${v.title}\nDescription: ${v.description}`).join("\n\n")}
 ---
 
 Based on this info, return a JSON array of 3 to 6 relevant topics or themes this creator consistently covers. Format example: ["fitness", "nutrition", "lifestyle"]
