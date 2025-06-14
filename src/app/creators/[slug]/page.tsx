@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 
-import { supabase } from "../../../../lib/supabaseClient";
+import { supabase } from "@/lib/supabaseClient";
 import { notFound } from "next/navigation";
 import { Metadata } from "next";
 
@@ -17,19 +17,22 @@ function slugify(name: string): string {
   return name.toLowerCase().replace(/[^\w]+/g, "-").replace(/(^-|-$)/g, "");
 }
 
-type PageProps = {
+// ✅ This matches Next.js's expected PageProps type exactly
+interface PageProps {
   params: {
     slug: string;
   };
-};
+}
 
+// Optional metadata
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   return {
     title: `${params.slug} | Creator`,
   };
 }
 
-export default async function Page({ params }: PageProps): Promise<JSX.Element> {
+// ✅ No Promises used in wrong places, clean async page
+export default async function Page({ params }: PageProps) {
   const { slug } = params;
 
   const { data, error } = await supabase.from("creators").select("*");
