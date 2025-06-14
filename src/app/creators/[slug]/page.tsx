@@ -12,18 +12,18 @@ type Creator = {
   youtube_channel_id: string;
 };
 
-function slugify(text: string) {
-  return text
+function slugify(name: string): string {
+  return name
     .toLowerCase()
     .replace(/[^\w]+/g, "-")
     .replace(/(^-|-$)/g, "");
 }
 
-interface Props {
-  params: { slug: string };
+export default function PageWrapper(props: any) {
+  return <Page {...props} />;
 }
 
-export default async function Page({ params }: Props) {
+async function Page({ params }: { params: { slug: string } }) {
   const { slug } = params;
 
   const { data, error } = await supabase.from("creators").select("*");
@@ -37,15 +37,9 @@ export default async function Page({ params }: Props) {
   return (
     <div className="p-8 space-y-4">
       <h1 className="text-3xl font-bold">{creator.name}</h1>
-      <p>
-        <strong>Niche:</strong> {creator.niche}
-      </p>
-      <p>
-        <strong>Reach:</strong> {creator.reach.toLocaleString()}
-      </p>
-      <p>
-        <strong>Topics:</strong> {creator.topics.join(", ")}
-      </p>
+      <p><strong>Niche:</strong> {creator.niche}</p>
+      <p><strong>Reach:</strong> {creator.reach.toLocaleString()}</p>
+      <p><strong>Topics:</strong> {creator.topics.join(", ")}</p>
       <a
         href={`https://youtube.com/channel/${creator.youtube_channel_id}`}
         target="_blank"
