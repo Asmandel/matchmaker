@@ -2,7 +2,6 @@ export const dynamic = "force-dynamic";
 
 import { supabase } from "../../../../lib/supabaseClient";
 import { notFound } from "next/navigation";
-import { Metadata } from "next";
 
 type Creator = {
   id: string;
@@ -17,19 +16,7 @@ function slugify(text: string) {
   return text.toLowerCase().replace(/[^\w]+/g, "-").replace(/(^-|-$)/g, "");
 }
 
-type PageProps = {
-  params: {
-    slug: string;
-  };
-};
-
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  return {
-    title: `Creator: ${params.slug.replace(/-/g, " ")}`,
-  };
-}
-
-export default async function CreatorPage({ params }: PageProps) {
+export default async function Page({ params }: { params: { slug: string } }) {
   const { slug } = params;
 
   const { data, error } = await supabase.from("creators").select("*");
