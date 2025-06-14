@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
 import { createClient } from '@/lib/supabaseClient';
 
 type Creator = {
@@ -13,8 +12,7 @@ type Creator = {
   topics: string;
 };
 
-export default function CreatorPage() {
-  const { slug } = useParams() as { slug: string };
+export default function CreatorClientPage({ slug }: { slug: string }) {
   const [creator, setCreator] = useState<Creator | null>(null);
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
@@ -36,8 +34,8 @@ export default function CreatorPage() {
       setLoading(false);
     };
 
-    if (slug) fetchCreator();
-  }, [slug]);
+    fetchCreator();
+  }, [slug, supabase]);
 
   if (loading) return <div className="p-8">Loading creator...</div>;
   if (!creator) return <div className="p-8">Creator not found.</div>;
