@@ -76,7 +76,7 @@ export default function Home() {
       );
       const videos = await videosRes.json();
 
-      const videoData = videos.items?.map((item: any) => ({
+      const videoData = videos.items?.map((item: { snippet: { title: string; description: string } }) => ({
         title: item.snippet.title,
         description: item.snippet.description,
       })) || [];
