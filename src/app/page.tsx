@@ -1,162 +1,117 @@
 "use client";
 
-import { useState } from "react";
-import { supabase } from "../../lib/supabaseClient";
-
-const YT_API_KEY = process.env.NEXT_PUBLIC_YOUTUBE_API_KEY;
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function Home() {
-  const [channelInput, setChannelInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState("");
+  const [creators, setCreators] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [youtubeUrl, setYoutubeUrl] = useState("");
 
-  const fetchChannelInfo = async () => {
-    setLoading(true);
-    setStatus("");
+  useEffect(() => {
+    const fetchCreators = async () => {
+      const { data, error } = await supabase.from("creators").select("*");
+      if (!error) setCreators(data || []);
+      setLoading(false);
+    };
 
-    try {
-      const channelId = await resolveChannelId(channelInput);
-      if (!channelId) throw new Error("Channel not found");
+    fetchCreators();
+  }, []);
 
-      const channelData = await fetch(
-        `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${channelId}&key=${YT_API_KEY}`
-      ).then((res) => res.json());
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!youtubeUrl) return;
 
-      const channel = channelData.items?.[0];
-      if (!channel) throw new Error("Unable to fetch channel details");
+    const channelId = youtubeUrl.split("/").pop()?.split("?")[0] || "";
 
-      const { title, description } = channel.snippet;
-      const reach = channel.statistics.subscriberCount;
+    // 1. Get channel details
+    const channelRes = await fetch(
+      `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${channelId}&key=${process.env.NEXT_PUBLIC_YOUTUBE_API_KEY}`
+    );
+    const channelJson = await channelRes.json();
+    const channel = channelJson.items?.[0];
 
-      const { topics, niche } = await analyzeContent(channelId, description);
-
-      const { error } = await supabase.from("creators").insert([
-        {
-          name: title,
-          niche,
-          reach: parseInt(reach),
-          youtube_channel_id: channelId,
-          topics,
-        },
-      ]);
-
-      if (error) throw error;
-
-      setStatus("✅ Creator added successfully");
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      setStatus("❌ " + message);
+    if (!channel) {
+      alert("Channel not found.");
+      return;
     }
 
-    setLoading(false);
-  };
+    const name = channel.snippet.title;
+    const description = channel.snippet.description;
+    const reach = channel.statistics.subscriberCount;
 
-  const resolveChannelId = async (input: string): Promise<string | null> => {
-    const isUrl = input.includes("youtube.com");
+    // 2. Get recent videos
+    const uploadsPlaylistId = channel.contentDetails?.relatedPlaylists?.uploads;
+    let videoTitles = "";
 
-    if (isUrl) {
-      const url = new URL(input);
-      const path = url.pathname.split("/");
-      const username = path[path.length - 1];
-
-      if (url.pathname.includes("/channel/")) return username;
-
-      const data = await fetch(
-        `https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${username}&key=${YT_API_KEY}`
-      ).then((res) => res.json());
-
-      return data.items?.[0]?.snippet?.channelId || null;
-    }
-
-    return input;
-  };
-
-  const analyzeContent = async (channelId: string, description: string): Promise<{ topics: string[]; niche: string }> => {
-    try {
+    if (uploadsPlaylistId) {
       const videosRes = await fetch(
-        `https://www.googleapis.com/youtube/v3/search?key=${YT_API_KEY}&channelId=${channelId}&part=snippet&order=date&maxResults=10&type=video`
+        `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=10&playlistId=${uploadsPlaylistId}&key=${process.env.NEXT_PUBLIC_YOUTUBE_API_KEY}`
       );
-      const videos = await videosRes.json();
+      const videosJson = await videosRes.json();
+      const titles = videosJson.items?.map((v: any) => v.snippet.title) || [];
+      videoTitles = titles.join(", ");
+    }
 
-      const videoData = videos.items?.map(
-        (item: { snippet: { title: string; description: string } }) => ({
-          title: item.snippet.title,
-          description: item.snippet.description,
-        })
-      ) || [];
+    // 3. Ask OpenAI for topics
+    const openaiRes = await fetch("/api/topics", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ description, videoTitles }),
+    });
 
-      const prompt = `
-You are an expert in online creators.
+    const { topics } = await openaiRes.json();
 
-Here is a YouTube channel description:
----
-${description}
----
+    // 4. Save to Supabase
+    const { error } = await supabase.from("creators").insert([
+      {
+        name,
+        reach,
+        youtube: youtubeUrl,
+        description,
+        topics,
+      },
+    ]);
 
-And here are the 10 latest video titles and descriptions:
----
-${videoData.map((v: { title: string; description: string }) => `Title: ${v.title}\nDescription: ${v.description}`).join("\n\n")}
----
-
-First, return a JSON array of 3 to 6 relevant topics or themes the creator consistently covers. Then on the next line, return a single lowercase word that best describes the creator’s overall niche (e.g. travel, fitness, tech, comedy, gaming).
-
-Format exactly like this:
-["topic1", "topic2", "topic3"]
-niche
-`;
-
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: "gpt-3.5-turbo",
-          messages: [{ role: "user", content: prompt }],
-          temperature: 0.5,
-        }),
-      });
-
-      const result = await response.json();
-      const output = result.choices?.[0]?.message?.content || "";
-      const [topicsText, nicheText] = output.trim().split("\n");
-
-      const topics = JSON.parse(topicsText);
-      const niche = nicheText.trim().toLowerCase();
-
-      return {
-        topics: Array.isArray(topics) ? topics : [],
-        niche,
-      };
-    } catch (err) {
-      console.error("OpenAI analysis error:", err);
-      return {
-        topics: [],
-        niche: "unknown",
-      };
+    if (!error) {
+      setYoutubeUrl("");
+      const { data } = await supabase.from("creators").select("*");
+      setCreators(data || []);
+    } else {
+      alert("Failed to save creator.");
     }
   };
+
+  if (loading) return <div className="p-8">Loading creators...</div>;
 
   return (
-    <div className="p-8 space-y-6">
-      <h1 className="text-2xl font-bold">🔍 Add Creator from YouTube</h1>
-      <input
-        type="text"
-        placeholder="Paste YouTube Channel URL or Username"
-        value={channelInput}
-        onChange={(e) => setChannelInput(e.target.value)}
-        className="w-full border rounded p-2"
-      />
-      <button
-        onClick={fetchChannelInfo}
-        disabled={loading}
-        className="bg-black text-white px-4 py-2 rounded disabled:opacity-50"
-      >
-        {loading ? "Processing..." : "Fetch & Add Creator"}
-      </button>
+    <div className="p-8 max-w-xl mx-auto">
+      <h1 className="text-2xl font-bold mb-4">🎥 Creators</h1>
 
-      {status && <p>{status}</p>}
+      <form onSubmit={handleSubmit} className="mb-6">
+        <input
+          type="text"
+          placeholder="Paste YouTube channel URL"
+          value={youtubeUrl}
+          onChange={(e) => setYoutubeUrl(e.target.value)}
+          className="border p-2 w-full rounded mb-2"
+        />
+        <button type="submit" className="bg-black text-white px-4 py-2 rounded">
+          Submit
+        </button>
+      </form>
+
+      {creators.length === 0 ? (
+        <p>No creators found.</p>
+      ) : (
+        <ul className="list-disc pl-6">
+          {creators.map((c) => (
+            <li key={c.id}>
+              <strong>{c.name}</strong> — {c.topics}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
