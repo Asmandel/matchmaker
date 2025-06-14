@@ -23,9 +23,14 @@ export default function Home() {
   useEffect(() => {
     const fetchCreators = async () => {
       const { data, error } = await supabase.from("creators").select("*");
-      if (!error && data) setCreators(data as Creator[]);
+
+      if (!error && data !== null) {
+        setCreators(data as Creator[]);
+      }
+
       setLoading(false);
     };
+
     fetchCreators();
   }, []);
 
