@@ -1,12 +1,14 @@
 import { supabase } from "@/lib/supabaseClient";
 
-type Props = {
-  params: {
-    slug: string;
-  };
+type Params = {
+  slug: string;
 };
 
-export default async function CreatorPage({ params }: Props) {
+export default async function CreatorPage({
+  params,
+}: {
+  params: Params;
+}) {
   const { slug } = params;
   const { data: creator } = await supabase
     .from("creators")
