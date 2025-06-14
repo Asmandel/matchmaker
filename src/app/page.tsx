@@ -18,8 +18,9 @@ export default function Home() {
       const channelId = await resolveChannelId(channelInput);
       if (!channelId) throw new Error("Channel not found");
 
-      const channelData = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${channelId}&key=${YT_API_KEY}`)
-        .then((res) => res.json());
+      const channelData = await fetch(
+        `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${channelId}&key=${YT_API_KEY}`
+      ).then((res) => res.json());
 
       const channel = channelData.items?.[0];
       if (!channel) throw new Error("Unable to fetch channel details");
@@ -27,12 +28,12 @@ export default function Home() {
       const { title, description } = channel.snippet;
       const reach = channel.statistics.subscriberCount;
 
-      const topics = await extractTopics(channelId, description);
+      const { topics, niche } = await analyzeContent(channelId, description);
 
       const { error } = await supabase.from("creators").insert([
         {
           name: title,
-          niche: "Auto",
+          niche,
           reach: parseInt(reach),
           youtube_channel_id: channelId,
           topics,
@@ -60,8 +61,9 @@ export default function Home() {
 
       if (url.pathname.includes("/channel/")) return username;
 
-      const data = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${username}&key=${YT_API_KEY}`)
-        .then((res) => res.json());
+      const data = await fetch(
+        `https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${username}&key=${YT_API_KEY}`
+      ).then((res) => res.json());
 
       return data.items?.[0]?.snippet?.channelId || null;
     }
@@ -69,20 +71,22 @@ export default function Home() {
     return input;
   };
 
-  const extractTopics = async (channelId: string, description: string): Promise<string[]> => {
+  const analyzeContent = async (channelId: string, description: string): Promise<{ topics: string[]; niche: string }> => {
     try {
       const videosRes = await fetch(
         `https://www.googleapis.com/youtube/v3/search?key=${YT_API_KEY}&channelId=${channelId}&part=snippet&order=date&maxResults=10&type=video`
       );
       const videos = await videosRes.json();
 
-      const videoData = videos.items?.map((item: { snippet: { title: string; description: string } }) => ({
-        title: item.snippet.title,
-        description: item.snippet.description,
-      })) || [];
+      const videoData = videos.items?.map(
+        (item: { snippet: { title: string; description: string } }) => ({
+          title: item.snippet.title,
+          description: item.snippet.description,
+        })
+      ) || [];
 
       const prompt = `
-You are an AI that summarizes YouTube content trends.
+You are an expert in online creators.
 
 Here is a YouTube channel description:
 ---
@@ -94,7 +98,11 @@ And here are the 10 latest video titles and descriptions:
 ${videoData.map((v: { title: string; description: string }) => `Title: ${v.title}\nDescription: ${v.description}`).join("\n\n")}
 ---
 
-Based on this info, return a JSON array of 3 to 6 relevant topics or themes this creator consistently covers. Format example: ["fitness", "nutrition", "lifestyle"]
+First, return a JSON array of 3 to 6 relevant topics or themes the creator consistently covers. Then on the next line, return a single lowercase word that best describes the creator’s overall niche (e.g. travel, fitness, tech, comedy, gaming).
+
+Format exactly like this:
+["topic1", "topic2", "topic3"]
+niche
 `;
 
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -111,13 +119,22 @@ Based on this info, return a JSON array of 3 to 6 relevant topics or themes this
       });
 
       const result = await response.json();
-      const jsonText = result.choices?.[0]?.message?.content || "[]";
-      const topics = JSON.parse(jsonText);
+      const output = result.choices?.[0]?.message?.content || "";
+      const [topicsText, nicheText] = output.trim().split("\n");
 
-      return Array.isArray(topics) ? topics : [];
+      const topics = JSON.parse(topicsText);
+      const niche = nicheText.trim().toLowerCase();
+
+      return {
+        topics: Array.isArray(topics) ? topics : [],
+        niche,
+      };
     } catch (err) {
-      console.error("OpenAI topic extraction error:", err);
-      return [];
+      console.error("OpenAI analysis error:", err);
+      return {
+        topics: [],
+        niche: "unknown",
+      };
     }
   };
 
@@ -143,5 +160,3 @@ Based on this info, return a JSON array of 3 to 6 relevant topics or themes this
     </div>
   );
 }
-
-
