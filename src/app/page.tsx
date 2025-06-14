@@ -27,14 +27,13 @@ export default function Home() {
       const { title, description } = channel.snippet;
       const reach = channel.statistics.subscriberCount;
 
-      // Auto-generate topics (very basic, upgrade later)
+      // Auto-generate topics (basic for now)
       const topics = extractTopics(description);
 
-      // Insert into Supabase
       const { error } = await supabase.from("creators").insert([
         {
           name: title,
-          niche: "Auto", // Can refine with AI later
+          niche: "Auto", // Upgrade later
           reach: parseInt(reach),
           youtube_channel_id: channelId,
           topics,
@@ -44,8 +43,9 @@ export default function Home() {
       if (error) throw error;
 
       setStatus("✅ Creator added successfully");
-    } catch (err: any) {
-      setStatus("❌ " + err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setStatus("❌ " + message);
     }
 
     setLoading(false);
@@ -61,14 +61,14 @@ export default function Home() {
 
       if (url.pathname.includes("/channel/")) return username;
 
-      // If it's /c/ or /user/, resolve to channel ID
+      // Handle /c/ and /user/
       const data = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${username}&key=${YT_API_KEY}`)
         .then((res) => res.json());
 
       return data.items?.[0]?.snippet?.channelId || null;
     }
 
-    // If plain text, treat as username or ID
+    // Assume it's a raw username or ID
     return input;
   };
 
