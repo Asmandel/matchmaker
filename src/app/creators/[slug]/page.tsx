@@ -9,35 +9,26 @@ type Props = {
 export default async function CreatorPage({ params }: Props) {
   const { slug } = params;
 
-  const { data: creator, error } = await supabase
+  const { data, error } = await supabase
     .from("creators")
     .select("*")
     .eq("slug", slug)
     .single();
 
-  if (error) {
+  if (error || !data) {
     return (
       <div className="p-8">
-        <h1 className="text-2xl font-bold">Error loading creator</h1>
-        <p>{error.message}</p>
-      </div>
-    );
-  }
-
-  if (!creator) {
-    return (
-      <div className="p-8">
-        <h1 className="text-2xl font-bold">Creator not found</h1>
+        <h1 className="text-2xl font-bold mb-4">Creator Not Found</h1>
+        <p>{error?.message ?? "No data available."}</p>
       </div>
     );
   }
 
   return (
     <div className="p-8">
-      <h1 className="text-3xl font-bold mb-4">{creator.name}</h1>
-      <p className="mb-2">Niche: {creator.niche}</p>
-      <p className="mb-2">YouTube: <a href={creator.youtube_url} className="text-blue-600 underline">{creator.youtube_url}</a></p>
-      <p className="mb-2">Topics: {creator.topics?.join(", ")}</p>
+      <h1 className="text-2xl font-bold mb-4">{data.name}</h1>
+      <p className="mb-2">Niche: {data.niche}</p>
+      <p>Topics: {data.topics}</p>
     </div>
   );
 }
