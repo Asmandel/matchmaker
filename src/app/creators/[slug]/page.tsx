@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { supabase } from "../../../../lib/supabaseClient";
 import { notFound } from "next/navigation";
+import { Metadata } from "next";
 
 type Creator = {
   id: string;
@@ -16,7 +17,19 @@ function slugify(text: string) {
   return text.toLowerCase().replace(/[^\w]+/g, "-").replace(/(^-|-$)/g, "");
 }
 
-const CreatorProfile = async ({ params }: { params: { slug: string } }) => {
+type PageProps = {
+  params: {
+    slug: string;
+  };
+};
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  return {
+    title: `Creator: ${params.slug.replace(/-/g, " ")}`,
+  };
+}
+
+export default async function CreatorPage({ params }: PageProps) {
   const { slug } = params;
 
   const { data, error } = await supabase.from("creators").select("*");
@@ -49,6 +62,4 @@ const CreatorProfile = async ({ params }: { params: { slug: string } }) => {
       </a>
     </div>
   );
-};
-
-export default CreatorProfile;
+}
