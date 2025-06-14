@@ -11,6 +11,10 @@ type Creator = {
   topics: string[];
 };
 
+function slugify(text: string) {
+  return text.toLowerCase().replace(/[^\w]+/g, "-").replace(/(^-|-$)/g, "");
+}
+
 export default function CreatorsPage() {
   const [creators, setCreators] = useState<Creator[]>([]);
   const [filtered, setFiltered] = useState<Creator[]>([]);
@@ -79,7 +83,14 @@ export default function CreatorsPage() {
               key={creator.id}
               className="border p-4 rounded shadow-sm hover:shadow-md transition"
             >
-              <h2 className="text-lg font-semibold">{creator.name}</h2>
+              <h2 className="text-lg font-semibold">
+                <a
+                  href={`/creators/${slugify(creator.name)}`}
+                  className="text-blue-600 underline"
+                >
+                  {creator.name}
+                </a>
+              </h2>
               <p>
                 <strong>Niche:</strong> {creator.niche}
               </p>
