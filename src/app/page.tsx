@@ -1,48 +1,43 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function Home() {
-  const [authed, setAuthed] = useState(false);
-  const [input, setInput] = useState("");
+  const [creators, setCreators] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const stored = localStorage.getItem("authed");
-    if (stored === "true") setAuthed(true);
+    const fetchCreators = async () => {
+      const { data, error } = await supabase.from("creators").select("*");
+
+      if (error) {
+        console.error("Error fetching creators:", error.message);
+      } else {
+        setCreators(data || []);
+      }
+
+      setLoading(false);
+    };
+
+    fetchCreators();
   }, []);
 
-  const handleLogin = () => {
-    if (input === process.env.NEXT_PUBLIC_APP_PASSWORD) {
-      localStorage.setItem("authed", "true");
-      setAuthed(true);
-    } else {
-      alert("Incorrect password");
-    }
-  };
-
-  if (!authed) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen p-8 gap-4">
-        <h1 className="text-xl font-bold">Enter Password</h1>
-        <input
-          type="password"
-          className="border p-2 rounded w-full max-w-sm"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-        />
-        <button
-          className="bg-black text-white px-4 py-2 rounded hover:opacity-80"
-          onClick={handleLogin}
-        >
-          Submit
-        </button>
-      </div>
-    );
-  }
+  if (loading) return <div className="p-8">Loading creators...</div>;
 
   return (
-    <div className="flex items-center justify-center h-screen bg-white">
-      <h1 className="text-4xl font-bold text-black">✅ Matchmaker is LIVE</h1>
+    <div className="p-8">
+      <h1 className="text-2xl font-bold mb-4">🎥 Creators</h1>
+      {creators.length === 0 ? (
+        <p>No creators found.</p>
+      ) : (
+        <ul className="list-disc pl-6">
+          {creators.map((c) => (
+            <li key={c.id}>{c.name} — {c.niche}</li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
+
